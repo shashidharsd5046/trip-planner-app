@@ -117,8 +117,20 @@ def ingest_destination_data(
     
     # Step 4: Fetch and insert weather data
     try:
-        weather_data = api_client.get_weather_forecast(latitude, longitude, days=14)
-        logger.info(f"  Retrieved {len(weather_data)} days of weather forecast")
+        # Weather must match the trip window, not the day the destination was
+        # created. This prevents a trip starting on the 16th from being
+        # populated with snapshots beginning on the 14th.
+        with LakebaseConnection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT start_date, end_date FROM trips WHERE trip_id = %s", (trip_id,))
+                trip_dates = cur.fetchone()
+        if not trip_dates:
+            raise RuntimeError(f"Trip {trip_id} was not found while loading its date window")
+        trip_start, trip_end = (str(trip_dates[0]), str(trip_dates[1]))
+        weather_data = api_client.get_weather_forecast(
+            latitude, longitude, start_date=trip_start, end_date=trip_end
+        )
+        logger.info(f"  Retrieved {len(weather_data)} weather days for trip window {trip_start} to {trip_end}")
         
         try:
             aqi_data = api_client.get_air_quality(latitude, longitude, days=14)

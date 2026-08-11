@@ -80,7 +80,9 @@ def geocode_location(place_name: str) -> Optional[Dict]:
 
 
 @retry_with_backoff
-def get_weather_forecast(latitude: float, longitude: float, days: int = 7) -> List[Dict]:
+def get_weather_forecast(latitude: float, longitude: float, days: int = 7,
+                         start_date: Optional[str] = None,
+                         end_date: Optional[str] = None) -> List[Dict]:
     """
     Get weather forecast from Open-Meteo Weather API
     
@@ -95,8 +97,12 @@ def get_weather_forecast(latitude: float, longitude: float, days: int = 7) -> Li
         # `weathercode` name causes the request to fail with HTTP 400).
         "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,uv_index_max",
         "timezone": "auto",
-        "forecast_days": days
     }
+    if start_date and end_date:
+        params["start_date"] = start_date
+        params["end_date"] = end_date
+    else:
+        params["forecast_days"] = days
     
     response = requests.get(OPEN_METEO_WEATHER_URL, params=params, timeout=10)
     response.raise_for_status()
