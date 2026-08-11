@@ -9,6 +9,7 @@ Final project submission for the Zach Wilson Databricks AI Engineering Bootcamp.
 
 ![Weather Intelligence Trip Planner](docs/app-screenshot.png)
 
+
 ## Features
 
 - Create users with generated Lakebase UUIDs.
