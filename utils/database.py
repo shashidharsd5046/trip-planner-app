@@ -20,9 +20,24 @@ LAKEBASE_CONFIG = {
 @contextmanager
 def get_lakebase_connection():
     try:
-        # Use the same secret-backed URL as the agent and ingestion paths.
-        # The deployed app does not expose a raw password environment variable.
-        if os.getenv('LAKEBASE_URL') or os.getenv('LAKEBASE_SECRET_KEY'):
+        # Databricks Apps injects PG* settings when a Lakebase database is
+        # attached as an App resource. Generate a short-lived OAuth password
+        # instead of relying on a hard-coded or manually rotated password.
+        endpoint_name = os.getenv('ENDPOINT_NAME') or os.getenv('PGENDPOINT')
+        if os.getenv('PGHOST') and endpoint_name:
+            from databricks.sdk import WorkspaceClient
+            credential = WorkspaceClient().postgres.generate_database_credential(
+                endpoint=endpoint_name
+            )
+            conn = psycopg2.connect(
+                host=os.environ['PGHOST'],
+                port=int(os.getenv('PGPORT', '5432')),
+                database=os.environ['PGDATABASE'],
+                user=os.environ['PGUSER'],
+                password=credential.token,
+                sslmode=os.getenv('PGSSLMODE', 'require'),
+            )
+        elif os.getenv('LAKEBASE_URL') or os.getenv('LAKEBASE_SECRET_KEY'):
             from lakebase import _lakebase_url
             conn = psycopg2.connect(_lakebase_url())
         else:

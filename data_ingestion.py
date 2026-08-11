@@ -30,6 +30,21 @@ class LakebaseConnection:
         # secret-backed URL in the deployed app.
         connection_url = os.getenv("LAKEBASE_URL")
         if not connection_url:
+            endpoint_name = os.getenv("ENDPOINT_NAME") or os.getenv("PGENDPOINT")
+            if os.getenv("PGHOST") and endpoint_name:
+                credential = WorkspaceClient().postgres.generate_database_credential(
+                    endpoint=endpoint_name
+                )
+                self._conn = psycopg2.connect(
+                    host=os.environ["PGHOST"],
+                    port=int(os.getenv("PGPORT", "5432")),
+                    database=os.environ["PGDATABASE"],
+                    user=os.environ["PGUSER"],
+                    password=credential.token,
+                    sslmode=os.getenv("PGSSLMODE", "require"),
+                )
+                logger.info("Connected to Lakebase using Databricks OAuth")
+                return self._conn
             # Reuse the same secret-backed connection as the UI and agent.
             from lakebase import _lakebase_url
             self._conn = psycopg2.connect(_lakebase_url())
