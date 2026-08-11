@@ -91,7 +91,9 @@ def get_weather_forecast(latitude: float, longitude: float, days: int = 7) -> Li
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weathercode,uv_index_max",
+        # Open-Meteo's current variable name is `weather_code` (the old
+        # `weathercode` name causes the request to fail with HTTP 400).
+        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weather_code,uv_index_max",
         "timezone": "auto",
         "forecast_days": days
     }
@@ -111,7 +113,7 @@ def get_weather_forecast(latitude: float, longitude: float, days: int = 7) -> Li
             "temp_low_c": daily.get("temperature_2m_min", [])[i],
             "precipitation_mm": daily.get("precipitation_sum", [])[i] or 0.0,
             "precipitation_probability_pct": daily.get("precipitation_probability_max", [])[i] or 0.0,
-            "weather_code": daily.get("weathercode", [])[i],
+            "weather_code": daily.get("weather_code", [])[i],
             "uv_index": daily.get("uv_index_max", [])[i],
         })
     
