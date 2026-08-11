@@ -20,7 +20,13 @@ LAKEBASE_CONFIG = {
 @contextmanager
 def get_lakebase_connection():
     try:
-        conn = psycopg2.connect(**LAKEBASE_CONFIG)
+        # Use the same secret-backed URL as the agent and ingestion paths.
+        # The deployed app does not expose a raw password environment variable.
+        if os.getenv('LAKEBASE_URL') or os.getenv('LAKEBASE_SECRET_KEY'):
+            from lakebase import _lakebase_url
+            conn = psycopg2.connect(_lakebase_url())
+        else:
+            conn = psycopg2.connect(**LAKEBASE_CONFIG)
         try:
             yield conn
         finally:

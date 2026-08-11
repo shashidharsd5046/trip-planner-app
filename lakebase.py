@@ -14,12 +14,17 @@ def _lakebase_url() -> str:
     direct_url = os.getenv("LAKEBASE_URL")
     if direct_url:
         return direct_url
-    from utils.database import LAKEBASE_CONFIG
-    return psycopg2.extensions.make_dsn(**LAKEBASE_CONFIG)
     scope = os.getenv("LAKEBASE_SECRET_SCOPE", "database")
     key = os.getenv("LAKEBASE_SECRET_KEY", "lakebase-url")
-    secret = WorkspaceClient().secrets.get_secret(scope=scope, key=key)
-    return base64.b64decode(secret.value).decode("utf-8")
+    try:
+        secret = WorkspaceClient().secrets.get_secret(scope=scope, key=key)
+        if secret and secret.value:
+            return base64.b64decode(secret.value).decode("utf-8")
+    except Exception:
+        # Local development can use LAKEBASE_PASSWORD instead.
+        pass
+    from utils.database import LAKEBASE_CONFIG
+    return psycopg2.extensions.make_dsn(**LAKEBASE_CONFIG)
 
 
 @contextmanager

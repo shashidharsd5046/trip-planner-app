@@ -30,11 +30,9 @@ class LakebaseConnection:
         # secret-backed URL in the deployed app.
         connection_url = os.getenv("LAKEBASE_URL")
         if not connection_url:
-            # Reuse the same connection configuration as the Trip Management
-            # UI. This prevents the agent from silently querying another
-            # Lakebase project.
-            from utils.database import LAKEBASE_CONFIG
-            self._conn = psycopg2.connect(**LAKEBASE_CONFIG)
+            # Reuse the same secret-backed connection as the UI and agent.
+            from lakebase import _lakebase_url
+            self._conn = psycopg2.connect(_lakebase_url())
             logger.info("Connected to Lakebase")
             return self._conn
         
