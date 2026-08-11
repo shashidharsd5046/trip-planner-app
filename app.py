@@ -61,76 +61,42 @@ def load_trips_list(user_id):
 # Store current trip ID globally
 current_trip_id = None
 
-def create_new_user(display_name, lat_str, lon_str, interests, notes):
-    if not display_name:
-        return "❌ Enter a display name", "", ""
-    try:
-        lat = float(lat_str) if lat_str else None
-        lon = float(lon_str) if lon_str else None
-        result = create_user(display_name, lat, lon, interests, notes)
-        if result.get('success'):
-            return f"✅ {result['message']}\n\n**User ID:** `{result['user_id']}`", result['user_id'], result['user_id']
-        return f"❌ Error: {result.get('error')}", "", ""
-    except Exception as e:
-        return f"❌ Error: {str(e)}", "", ""
-
-def create_new_trip(name, start, end, user_id, destination, lat_str, lon_str):
+def create_user_trip(display_name, home_lat_str, home_lon_str, interests, notes,
+                     trip_name, start, end, destination, lat_str, lon_str):
+    """Create the complete user → trip → destination workflow once."""
     global current_trip_id
-    if not name or not start or not end or not user_id:
-        return "❌ Fill all fields, including User ID"
-    user_id = user_id.strip()
+    required = [display_name, trip_name, start, end, destination, lat_str, lon_str]
+    if not all(str(value).strip() for value in required):
+        return "❌ Complete the user, trip, destination, latitude, and longitude fields."
     try:
-        result = create_trip(name, start, end, user_id)
-        if result.get('success'):
-            current_trip_id = result['trip_id']
-            destination_message = ""
-            if destination:
-                lat = float(lat_str) if lat_str else None
-                lon = float(lon_str) if lon_str else None
-                if lat is None or lon is None:
-                    return f"✅ Trip created but destination was not added.\n\n**Trip ID:** `{current_trip_id}`\n\n❌ Provide both destination coordinates."
-                destination_id = ingest_destination_data(
-                    current_trip_id, destination, 0, lat, lon
-                )
-                if destination_id:
-                    destination_message = f"\n\n✅ Destination added: **{destination}**"
-                else:
-                    destination_message = "\n\n⚠️ Trip created, but destination ingestion failed."
-            msg = f"✅ {result['message']}\n\n**Trip ID:** `{current_trip_id}`{destination_message}"
-            return msg
-        return f"❌ Error: {result.get('error')}"
-    except Exception as e:
-        return f"❌ Error: {str(e)}"
+        home_lat = float(home_lat_str) if home_lat_str else None
+        home_lon = float(home_lon_str) if home_lon_str else None
+        lat = float(lat_str)
+        lon = float(lon_str)
 
+        user_result = create_user(display_name, home_lat, home_lon, interests, notes)
+        if not user_result.get('success'):
+            return f"❌ User creation failed: {user_result.get('error')}"
+        user_id = user_result['user_id']
 
-def add_dest(place, lat_str, lon_str):
-    global current_trip_id
-    
-    # If no trip selected, get the most recent one from database
-    if not current_trip_id:
-        try:
-            trips = get_all_trips()
-            if not trips:
-                return "❌ Create a trip first!"
-            current_trip_id = trips[0]['trip_id']  # Most recent trip
-        except:
-            return "❌ Could not load trips from database"
-    
-    if not place:
-        return "❌ Provide place name"
-    try:
-        lat = float(lat_str) if lat_str else None
-        lon = float(lon_str) if lon_str else None
-        if lat is None or lon is None:
-            return "❌ Provide coordinates"
-        destination_id = ingest_destination_data(current_trip_id, place, 0, lat, lon)
+        trip_result = create_trip(trip_name, start, end, user_id)
+        if not trip_result.get('success'):
+            return f"❌ Trip creation failed for user `{user_id}`: {trip_result.get('error')}"
+        current_trip_id = trip_result['trip_id']
+
+        destination_id = ingest_destination_data(current_trip_id, destination, 0, lat, lon)
+        if not destination_id:
+            return f"❌ Destination enrichment failed.\n\n**User ID:** `{user_id}`\n**Trip ID:** `{current_trip_id}`"
+
         return (
-            f"✅ Added {place} to trip and seeded weather/activities"
-            if destination_id
-            else "❌ Destination ingestion failed"
+            "## ✅ Trip created successfully\n\n"
+            f"**User ID:** `{user_id}`\n\n"
+            f"**Trip ID:** `{current_trip_id}`\n\n"
+            f"**Destination:** {destination}\n"
+            "Weather, activities, and embeddings were populated before this success message."
         )
     except Exception as e:
-        return f"❌ Error: {str(e)}"
+        return f"❌ Workflow failed: {str(e)}"
 
 
 def view_details(trip_id):
@@ -241,39 +207,24 @@ with gr.Blocks(title="Weather Trip Planner", theme=gr.themes.Soft()) as app:
             gr.Markdown("## Create & Manage Trips")
             with gr.Row():
                 with gr.Column():
-                    gr.Markdown("### Create User")
+                    gr.Markdown("### Create User, Trip & Destination")
                     user_name = gr.Textbox(label="Display Name", placeholder="Test User")
                     with gr.Row():
                         user_lat = gr.Textbox(label="Home Latitude", placeholder="37.7749")
                         user_lon = gr.Textbox(label="Home Longitude", placeholder="-122.4194")
                     user_interests = gr.Textbox(label="Interests", placeholder="hiking, museums, food")
                     user_notes = gr.Textbox(label="Planning Notes", placeholder="Travelling with children; avoid long walks")
-                    user_btn = gr.Button("Create User", variant="secondary")
-                    user_out = gr.Markdown()
-                    user_id_for_trip = gr.Textbox(label="User ID", placeholder="Create a user first")
-
-                    gr.Markdown("### Create Trip")
                     trip_name = gr.Textbox(label="Trip Name", placeholder="My Adventure")
                     with gr.Row():
                         start_date = gr.Textbox(label="Start", placeholder="YYYY-MM-DD")
                         end_date = gr.Textbox(label="End", placeholder="YYYY-MM-DD")
-                    trip_destination = gr.Textbox(label="First Destination", placeholder="San Francisco")
+                    trip_destination = gr.Textbox(label="Destination", placeholder="London")
                     with gr.Row():
                         trip_lat = gr.Textbox(label="Destination Latitude", placeholder="37.7749")
                         trip_lon = gr.Textbox(label="Destination Longitude", placeholder="-122.4194")
-                    create_btn = gr.Button("Create", variant="primary")
+                    create_btn = gr.Button("Create User + Trip", variant="primary")
                     create_out = gr.Markdown()
-                with gr.Column():
-                    gr.Markdown("### Add Destination")
-                    gr.Markdown("*Destinations auto-add to your most recent trip*")
-                    place_name = gr.Textbox(label="Place", placeholder="San Francisco")
-                    with gr.Row():
-                        lat = gr.Textbox(label="Latitude", placeholder="37.7749")
-                        lon = gr.Textbox(label="Longitude", placeholder="-122.4194")
-                    add_btn = gr.Button("Add")
-                    add_out = gr.Markdown()
-                    gr.Markdown("*Select a User ID below to query that user's trips.*")
-                    query_user_id = gr.Textbox(label="User ID for Trip Query")
+                    query_user_id = gr.Textbox(label="User ID for Trip Query", placeholder="Returned after creation")
             gr.Markdown("---")
             with gr.Row():
                 with gr.Column():
@@ -286,17 +237,12 @@ with gr.Blocks(title="Weather Trip Planner", theme=gr.themes.Soft()) as app:
                     view_btn = gr.Button("View")
                     details_out = gr.Markdown()
 
-            user_btn.click(
-                create_new_user,
-                [user_name, user_lat, user_lon, user_interests, user_notes],
-                [user_out, user_id_for_trip, query_user_id],
-            )
             create_btn.click(
-                create_new_trip,
-                [trip_name, start_date, end_date, user_id_for_trip, trip_destination, trip_lat, trip_lon],
-                create_out,
+                create_user_trip,
+                [user_name, user_lat, user_lon, user_interests, user_notes,
+                 trip_name, start_date, end_date, trip_destination, trip_lat, trip_lon],
+                [create_out],
             )
-            add_btn.click(add_dest, [place_name, lat, lon], add_out)
             load_btn.click(load_trips_list, inputs=query_user_id, outputs=trips_out)
             view_btn.click(view_details, trip_id_view, details_out)
 

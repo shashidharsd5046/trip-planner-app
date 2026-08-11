@@ -175,7 +175,11 @@ def ingest_destination_data(
                 logger.info(f"  Inserted {len(merged_data)} weather snapshots")
     
     except Exception as e:
-        logger.error(f"  Failed to fetch/insert weather data: {e}")
+        # Do not report a successful destination when its required weather
+        # enrichment failed. The UI depends on this exception to show a real
+        # failure instead of leaving a partially populated destination.
+        logger.exception(f"  Failed to fetch/insert weather data: {e}")
+        raise RuntimeError(f"Weather enrichment failed for {place_name}: {e}") from e
     
     # Step 5: Get nearby attractions and seed activities
     try:
